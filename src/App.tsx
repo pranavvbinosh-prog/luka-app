@@ -1,0 +1,591 @@
+import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Camera, Mic, BookOpen, BarChart2, User, Home, Trophy, Flame, ArrowLeft, Pause, Play, Flag, Lightbulb, CheckCircle, Timer, Target, Award, FileText, X, Save, Book, Trash2, Image as ImageIcon, Star, Zap, Lock, Settings, Bell, Shield, LogOut, Edit2, Send, Sword } from 'lucide-react';
+
+export default function LukaApp() {
+  const [islandOpen, setIslandOpen] = useState(false);
+  const [time, setTime] = useState(new Date());
+  
+  const [isScanning, setIsScanning] = useState(false);
+  const [isFocusOpen, setIsFocusOpen] = useState(false);
+  const [isStatsOpen, setIsStatsOpen] = useState(false);
+  const [isNotesOpen, setIsNotesOpen] = useState(false); 
+  const [isLibraryOpen, setIsLibraryOpen] = useState(false); 
+  const [libraryTab, setLibraryTab] = useState<'notes' | 'camera'>('notes'); 
+  const [isAwardsOpen, setIsAwardsOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+
+  const [studentName, setStudentName] = useState("Student Name");
+  const [studentClass, setStudentClass] = useState("Grade 8");
+  const [studentSchool, setStudentSchool] = useState("LUKA Academy");
+  const [studentAvatar, setStudentAvatar] = useState("👦"); 
+  const [studentAvatarImage, setStudentAvatarImage] = useState<string | null>(null);
+  const [modal, setModal] = useState<{type: string, title: string, message: string, input1?: string, input2?: string, input3?: string, input4?: string} | null>(null);
+
+  const [savedNotes, setSavedNotes] = useState<{id: string, title: string, text: string, date: string}[]>(() => {
+    const saved = localStorage.getItem('luka_saved_notes');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [currentNote, setCurrentNote] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null); 
+  const [isSaved, setIsSaved] = useState(false);
+
+  const [secondsLeft, setSecondsLeft] = useState(25 * 60);
+  const [isTimerRunning, setIsTimerRunning] = useState(false);
+
+  const [aiQuery, setAiQuery] = useState("");
+  const [aiResponse, setAiResponse] = useState<string | null>(null);
+  const [isAiThinking, setIsAiThinking] = useState(false);
+
+  useEffect(() => {
+    const timer = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    let interval: any = null;
+    if (isTimerRunning && secondsLeft > 0) {
+      interval = setInterval(() => setSecondsLeft((prev) => prev - 1), 1000);
+    } else if (secondsLeft === 0) {
+      setIsTimerRunning(false);
+    }
+    return () => clearInterval(interval);
+  }, [isTimerRunning, secondsLeft]);
+
+  const formattedTime = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  
+  const formatTimer = (totalSeconds: number) => {
+    const m = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
+    const s = (totalSeconds % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setStudentAvatarImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleAskLuka = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!aiQuery.trim()) return;
+
+    setIsAiThinking(true);
+    setAiResponse(null);
+
+    try {
+      const response = await fetch("https://api.deepseek.com/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${import.meta.env.VITE_DEEPSEEK_API_KEY}`
+        },
+        body: JSON.stringify({
+          model: "deepseek-chat",
+          messages: [
+            { role: "system", content: "You are LUKA, a friendly and encouraging study mentor for a student. Your tone is like a cool, supportive teacher. Do not give direct answers. Use the Socratic method: ask leading questions. Keep responses short (under 3 sentences)." },
+            { role: "user", content: aiQuery }
+          ],
+          stream: false
+        })
+      });
+
+      const data = await response.json();
+      
+      if (data.choices && data.choices.length > 0) {
+        setAiResponse(data.choices[0].message.content);
+      } else {
+        setAiResponse("I'm having a little trouble thinking right now. Let's try again in a second!");
+      }
+    } catch (error) {
+      console.error(error);
+      setAiResponse("Oops, my internet connection is a bit slow. Can you try asking again?");
+    }
+    
+    setIsAiThinking(false);
+    setAiQuery("");
+  };
+
+  const handleSaveNote = () => {
+    if (!currentNote.trim()) return;
+    let updatedNotes;
+    if (editingId) {
+      updatedNotes = savedNotes.map(note => 
+        note.id === editingId 
+          ? { ...note, title: currentNote.split('\n')[0].substring(0, 20) || "Untitled", text: currentNote } 
+          : note
+      );
+    } else {
+      const newNote = {
+        id: Date.now().toString(),
+        title: currentNote.split('\n')[0].substring(0, 20) || "Untitled Note",
+        text: currentNote,
+        date: new Date().toLocaleDateString()
+      };
+      updatedNotes = [newNote, ...savedNotes];
+    }
+    setSavedNotes(updatedNotes);
+    localStorage.setItem('luka_saved_notes', JSON.stringify(updatedNotes));
+    setIsSaved(true);
+    setTimeout(() => {
+      setIsSaved(false);
+      setIsNotesOpen(false); 
+      setCurrentNote('');    
+      setEditingId(null); 
+    }, 1000);
+  };
+
+  const handleDeleteNote = () => {
+    if (!editingId) return;
+    const updatedNotes = savedNotes.filter(note => note.id !== editingId);
+    setSavedNotes(updatedNotes);
+    localStorage.setItem('luka_saved_notes', JSON.stringify(updatedNotes));
+    setIsNotesOpen(false);
+    setCurrentNote('');
+    setEditingId(null);
+  };
+
+  const handleEditNote = (note: any) => {
+    setCurrentNote(note.text);
+    setEditingId(note.id);
+    setIsLibraryOpen(false); 
+    setIsNotesOpen(true);    
+  };
+
+  const handleNewNote = () => {
+    setCurrentNote('');
+    setEditingId(null);
+    setIsNotesOpen(true);
+  };
+
+  const openModal = (type: string, title: string, message: string, i1?: string, i2?: string, i3?: string, i4?: string) => {
+    setModal({ type, title, message, input1: i1, input2: i2, input3: i3, input4: i4 });
+  };
+
+  const handleModalSubmit = () => {
+    if (!modal) return;
+    
+    if (modal.type === 'editProfile') {
+      if (modal.input1) setStudentName(modal.input1);
+      if (modal.input2) setStudentClass(modal.input2);
+      if (modal.input3) setStudentSchool(modal.input3);
+      if (modal.input4) setStudentAvatar(modal.input4);
+      setModal(null);
+    } 
+    else if (modal.type === 'parent' || modal.type === 'returnBase') {
+      if (modal.input1 === '1234') {
+        if (modal.type === 'parent') {
+          setModal({ type: 'success', title: 'Access Granted', message: 'Welcome to the Parent Dashboard.' });
+        } else {
+          setModal({ type: 'success', title: 'Unlocked', message: 'Returning to Android Home Screen...' });
+        }
+        return;
+      } else {
+        setModal({ type: 'error', title: 'Incorrect PIN', message: 'Please try again. (Hint: 1234)' });
+        return;
+      }
+    }
+    else {
+      setModal(null);
+    }
+  };
+
+  return (
+    <div className="app-container">
+      
+      <motion.div 
+        style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', transformOrigin: 'center' }}
+        animate={
+          (isFocusOpen || isStatsOpen || isNotesOpen || isLibraryOpen || isAwardsOpen || isProfileOpen || aiResponse) 
+            ? { opacity: 0, scale: 0.95, filter: "blur(10px)", pointerEvents: 'none' } 
+            : { opacity: 1, scale: 1, filter: "blur(0px)", pointerEvents: 'auto' }
+        }
+        transition={{ duration: 0.3, ease: "easeInOut" }}
+      >
+        <div className="top-clock">{formattedTime}</div>
+        <div className="dynamic-island" onClick={() => setIslandOpen(!islandOpen)}>
+          {islandOpen ? "Focus Mode Active" : "LUKA Study Mode"}
+        </div>
+        <div className="top-pomodoro">
+          <span style={{color: '#fb923c'}}>⏱</span> {formatTimer(secondsLeft)}
+        </div>
+
+        <div className="center-group">
+          <form className="search-bar" onSubmit={handleAskLuka}>
+            <input type="text" placeholder="Ask LUKA..." value={aiQuery} onChange={(e) => setAiQuery(e.target.value)} />
+            <button type="submit" style={{background: 'transparent', border: 'none', cursor: 'pointer'}}>
+              <Send color="#22d3ee" size={18} />
+            </button>
+          </form>
+          
+          <div className="scan-btn" onClick={() => setIsScanning(true)}>
+            <Camera color="#22d3ee" size={18} />
+            <span style={{fontSize: '13px', fontWeight: 'bold'}}>Scan Textbook</span>
+          </div>
+        </div>
+
+        <div className="bottom-cards">
+          <div className="card" onClick={() => setIsFocusOpen(true)} style={{cursor: 'pointer'}}>
+            <div className="card-icon"><BookOpen size={24} color="#22d3ee" /></div>
+            <div>
+              <div style={{fontSize: '12px', color: 'rgba(255,255,255,0.7)', marginBottom: '5px'}}>Today's Focus</div>
+              <div style={{fontSize: '24px', fontWeight: 'bold'}}>Math</div>
+            </div>
+          </div>
+          
+          <div className="card" onClick={handleNewNote} style={{cursor: 'pointer'}}>
+            <div className="card-icon"><FileText size={24} color="#fbbf24" /></div>
+            <div>
+              <div style={{fontSize: '12px', color: 'rgba(255,255,255,0.7)', marginBottom: '5px'}}>Quick Notes</div>
+              <div style={{fontSize: '24px', fontWeight: 'bold'}}>Jot it down</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="taskbar">
+          <div className="nav-item active"><Home size={16} /><span>Home</span></div>
+          <div className="nav-item" onClick={() => { setIsLibraryOpen(true); setLibraryTab('notes'); }} style={{cursor: 'pointer'}}>
+            <Book size={16} /><span>Library</span>
+          </div>
+          <div className="nav-item" onClick={() => setIsStatsOpen(true)} style={{cursor: 'pointer'}}>
+            <BarChart2 size={16} /><span>Stats</span>
+          </div>
+          <div className="nav-item" onClick={() => setIsAwardsOpen(true)} style={{cursor: 'pointer'}}>
+            <Trophy size={16} /><span>Awards</span>
+          </div>
+          <div className="nav-item" onClick={() => setIsProfileOpen(true)} style={{cursor: 'pointer'}}>
+            <User size={16} /><span>Profile</span>
+          </div>
+        </div>
+      </motion.div>
+
+      <AnimatePresence>
+        {(isAiThinking || aiResponse) && (
+          <motion.div className="notes-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <div className="notes-card" style={{height: 'auto', minHeight: '200px'}}>
+              <div className="notes-header">
+                <span>🤖 LUKA AI</span>
+                <div className="back-btn" onClick={() => { setAiResponse(null); setIsAiThinking(false); }}><X size={18} /></div>
+              </div>
+              {isAiThinking ? (
+                <div style={{display: 'flex', alignItems: 'center', gap: '10px', margin: '20px 0'}}>
+                  <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: "linear" }} style={{width: '20px', height: '20px', border: '3px solid rgba(255,255,255,0.3)', borderTopColor: '#22d3ee', borderRadius: '50%'}} />
+                  <span style={{fontSize: '15px', color: '#22d3ee'}}>LUKA is thinking...</span>
+                </div>
+              ) : (
+                <div style={{margin: '20px 0', fontSize: '16px', lineHeight: '1.6', color: 'white'}}>{aiResponse}</div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isProfileOpen && (
+          <motion.div className="profile-screen" initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} transition={{ type: "spring", stiffness: 300, damping: 30 }}>
+            <div className="profile-header">
+              <div className="back-btn" onClick={() => setIsProfileOpen(false)}><ArrowLeft size={18} /></div>
+              <div style={{fontSize: '24px', fontWeight: 'bold'}}>Profile</div>
+              <div style={{width: '35px'}}></div>
+            </div>
+
+            <div className="profile-avatar-section">
+              <input type="file" id="avatar-upload" accept="image/*" className="avatar-upload-input" onChange={handleImageUpload} />
+              
+              <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center'}}>
+                <label htmlFor="avatar-upload" style={{cursor: 'pointer'}}>
+                  <div className="avatar-circle" style={{fontSize: '50px', overflow: 'hidden'}}>
+                    {studentAvatarImage ? (
+                      <img src={studentAvatarImage} alt="Profile" className="avatar-image" />
+                    ) : (
+                      studentAvatar
+                    )}
+                  </div>
+                </label>
+                <label htmlFor="avatar-upload" className="change-photo-btn">📷 Change Photo</label>
+              </div>
+
+              <div style={{display: 'flex', alignItems: 'center', gap: '10px', marginTop: '10px'}}>
+                <div style={{fontSize: '22px', fontWeight: 'bold'}}>{studentName}</div>
+                <div onClick={() => openModal('editProfile', 'Edit Profile', 'Update your details:', studentName, studentClass, studentSchool, studentAvatar)} style={{cursor: 'pointer', opacity: 0.7, background: 'rgba(255,255,255,0.1)', padding: '6px', borderRadius: '50%'}}>
+                  <Edit2 size={16} color="#22d3ee" />
+                </div>
+              </div>
+              
+              <div style={{fontSize: '14px', color: '#22d3ee', display: 'flex', gap: '8px'}}>
+                <span>{studentClass}</span><span>•</span><span>{studentSchool}</span>
+              </div>
+            </div>
+
+            <div className="profile-menu">
+              <div className="menu-item" onClick={() => openModal('parent', 'Parent Settings', 'Enter Parent PIN:', '')}>
+                <Shield size={24} color="#fbbf24" />
+                <div className="menu-text"><div className="menu-title">Parent Settings</div><div className="menu-sub">Unlock to change study apps</div></div>
+                <Lock size={16} color="rgba(255,255,255,0.4)" />
+              </div>
+              <div className="menu-item" onClick={() => openModal('info', 'Notifications', 'You have no new alerts. Keep up the good work! 🔔')}>
+                <Bell size={24} color="#a855f7" />
+                <div className="menu-text"><div className="menu-title">Notifications</div><div className="menu-sub">Reminders & Alerts</div></div>
+              </div>
+              <div className="menu-item" onClick={() => openModal('info', 'App Settings', 'Brightness: 80%\nVolume: 50%\nWi-Fi: Connected to LUKA_Base')}>
+                <Settings size={24} color="#22d3ee" />
+                <div className="menu-text"><div className="menu-title">App Settings</div><div className="menu-sub">Brightness, Volume, Wi-Fi</div></div>
+              </div>
+              <div className="menu-item" style={{marginTop: '20px'}} onClick={() => openModal('returnBase', 'Return to Base', 'Enter Parent PIN to exit LUKA Mode:', '')}>
+                <LogOut size={24} color="#ef4444" />
+                <div className="menu-text"><div className="menu-title" style={{color: '#ef4444'}}>Return to Base</div><div className="menu-sub">Exit LUKA Mode (Requires PIN)</div></div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {modal && (
+          <motion.div className="notes-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <div className="notes-card" style={{height: 'auto', minHeight: '200px'}}>
+              <div className="notes-header">
+                <span>{modal.title}</span>
+                <div className="back-btn" onClick={() => setModal(null)}><X size={18} /></div>
+              </div>
+              <div style={{margin: '10px 0', fontSize: '15px', lineHeight: '1.6', color: 'rgba(255,255,255,0.8)'}}>{modal.message}</div>
+
+              {modal.type === 'editProfile' && (
+                <div style={{display: 'flex', flexDirection: 'column', gap: '10px'}}>
+                  <input className="glass-input" placeholder="Student Name" value={modal.input1 || ''} onChange={(e) => setModal({...modal, input1: e.target.value})} />
+                  <input className="glass-input" placeholder="Class (e.g. Grade 8)" value={modal.input2 || ''} onChange={(e) => setModal({...modal, input2: e.target.value})} />
+                  <input className="glass-input" placeholder="School Name" value={modal.input3 || ''} onChange={(e) => setModal({...modal, input3: e.target.value})} />
+                  <input className="glass-input" placeholder="Avatar (Emoji like 🦊)" value={modal.input4 || ''} onChange={(e) => setModal({...modal, input4: e.target.value})} />
+                </div>
+              )}
+
+              {(modal.type === 'parent' || modal.type === 'returnBase') && (
+                <input type="password" className="glass-input" placeholder="Enter PIN (Hint: 1234)" value={modal.input1 || ''} onChange={(e) => setModal({...modal, input1: e.target.value})} autoFocus />
+              )}
+
+              <div style={{display: 'flex', gap: '10px', marginTop: '20px', justifyContent: 'flex-end'}}>
+                {modal.type !== 'success' && modal.type !== 'error' && modal.type !== 'info' && (
+                  <button onClick={handleModalSubmit} style={{background: '#3b82f6', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '15px', fontWeight: 'bold', cursor: 'pointer'}}>Save</button>
+                )}
+                {(modal.type === 'success' || modal.type === 'error' || modal.type === 'info') && (
+                  <button onClick={() => setModal(null)} style={{background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', padding: '10px 20px', borderRadius: '15px', fontWeight: 'bold', cursor: 'pointer'}}>Close</button>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isAwardsOpen && (
+          <motion.div className="awards-screen" initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} transition={{ type: "spring", stiffness: 300, damping: 30 }}>
+            <div className="awards-header">
+              <div className="back-btn" onClick={() => setIsAwardsOpen(false)}><ArrowLeft size={18} /></div>
+              <div style={{fontSize: '24px', fontWeight: 'bold'}}>Your Awards</div>
+              <div style={{width: '35px'}}></div>
+            </div>
+
+            <div className="awards-grid">
+              <div className="award-card"><div className="award-icon-bg" style={{borderColor: '#fbbf24', boxShadow: '0 0 25px rgba(251, 191, 36, 0.4)', background: 'rgba(251, 191, 36, 0.1)'}}><Star size={36} color="#fbbf24" fill="#fbbf24" /></div><div className="award-title">First Steps</div><div className="award-desc">Complete 1 session</div></div>
+              <div className="award-card"><div className="award-icon-bg" style={{borderColor: '#fb923c', boxShadow: '0 0 25px rgba(251, 146, 60, 0.4)', background: 'rgba(251, 146, 60, 0.1)'}}><Flame size={36} color="#fb923c" fill="#fb923c" /></div><div className="award-title">On Fire</div><div className="award-desc">7-day streak</div></div>
+              <div className="award-card"><div className="award-icon-bg" style={{borderColor: '#22d3ee', boxShadow: '0 0 25px rgba(34, 211, 238, 0.4)', background: 'rgba(34, 211, 238, 0.1)'}}><Zap size={36} color="#22d3ee" fill="#22d3ee" /></div><div className="award-title">Fast Learner</div><div className="award-desc">50 questions</div></div>
+              <div className="award-card"><div className="award-icon-bg" style={{borderColor: '#4ade80', boxShadow: '0 0 25px rgba(74, 222, 128, 0.4)', background: 'rgba(74, 222, 128, 0.1)'}}><Target size={36} color="#4ade80" /></div><div className="award-title">Sharpshooter</div><div className="award-desc">90% Quiz accuracy</div></div>
+              <div className="award-card"><div className="award-icon-bg" style={{borderColor: '#a855f7', boxShadow: '0 0 25px rgba(168, 85, 247, 0.4)', background: 'rgba(168, 85, 247, 0.1)'}}><Book size={36} color="#a855f7" /></div><div className="award-title">Bookworm</div><div className="award-desc">Scan 10 pages</div></div>
+              <div className="award-card"><div className="award-icon-bg" style={{borderColor: '#f43f5e', boxShadow: '0 0 25px rgba(244, 63, 94, 0.4)', background: 'rgba(244, 63, 94, 0.1)'}}><Sword size={36} color="#f43f5e" /></div><div className="award-title">Heroic Master</div><div className="award-desc">30-day streak</div></div>
+
+              <div className="award-card locked"><div className="award-icon-bg"><Lock size={36} color="white" /></div><div className="award-title">Night Owl</div><div className="award-desc">Study after 8 PM</div></div>
+              <div className="award-card locked"><div className="award-icon-bg"><Lock size={36} color="white" /></div><div className="award-title">Math Master</div><div className="award-desc">5 perfect quizzes</div></div>
+              <div className="award-card locked"><div className="award-icon-bg"><Lock size={36} color="white" /></div><div className="award-title">Bullfire Fox</div><div className="award-desc">100-day streak</div></div>
+              <div className="award-card locked"><div className="award-icon-bg"><Lock size={36} color="white" /></div><div className="award-title">Grandmaster</div><div className="award-desc">Top 1% of users</div></div>
+              <div className="award-card locked"><div className="award-icon-bg"><Lock size={36} color="white" /></div><div className="award-title">Diamond Mind</div><div className="award-desc">500 questions</div></div>
+              <div className="award-card locked"><div className="award-icon-bg"><Lock size={36} color="white" /></div><div className="award-title">LUKA Legend</div><div className="award-desc">365-day streak</div></div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isNotesOpen && (
+          <motion.div className="notes-overlay" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} transition={{ type: "spring", stiffness: 300, damping: 25 }}>
+            <div className="notes-card">
+              <div className="notes-header">
+                <span>{editingId ? "✏️ Edit Note" : "📝 Quick Notes"}</span>
+                <div style={{display: 'flex', gap: '15px', alignItems: 'center'}}>
+                  {editingId && <button className="delete-btn" onClick={handleDeleteNote}><Trash2 size={16} /></button>}
+                  <button onClick={handleSaveNote} style={{background: isSaved ? '#4ade80' : 'rgba(255,255,255,0.1)', border: 'none', color: 'white', padding: '8px 16px', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold'}}>
+                    <Save size={16} /> {isSaved ? "Saved!" : "Save"}
+                  </button>
+                  <div className="back-btn" onClick={() => setIsNotesOpen(false)}><X size={18} /></div>
+                </div>
+              </div>
+              <textarea className="notes-textarea" placeholder="Write down formulas, reminders, or quick thoughts here..." value={currentNote} onChange={(e) => setCurrentNote(e.target.value)} spellCheck={true} autoCorrect="on" autoCapitalize="sentences" autoFocus></textarea>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isLibraryOpen && (
+          <motion.div className="library-screen" initial={{ opacity: 0, x: -100 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -100 }} transition={{ type: "spring", stiffness: 300, damping: 30 }}>
+            <div className="library-header">
+              <div className="back-btn" onClick={() => setIsLibraryOpen(false)}><ArrowLeft size={18} /></div>
+              <div style={{fontSize: '24px', fontWeight: 'bold'}}>Library</div>
+              <div style={{width: '35px'}}></div>
+            </div>
+
+            <div className="library-tabs">
+              <button className={`tab-btn ${libraryTab === 'notes' ? 'active' : ''}`} onClick={() => setLibraryTab('notes')}><FileText size={18} /> Notes</button>
+              <button className={`tab-btn ${libraryTab === 'camera' ? 'active' : ''}`} onClick={() => setLibraryTab('camera')}><ImageIcon size={18} /> Scanned Pages</button>
+            </div>
+
+            {libraryTab === 'notes' && (
+              <div className="saved-notes-list">
+                {savedNotes.length === 0 ? (
+                  <div style={{textAlign: 'center', color: 'rgba(255,255,255,0.5)', marginTop: '50px'}}>No notes saved yet.</div>
+                ) : (
+                  savedNotes.map((note) => (
+                    <div className="saved-note-card" key={note.id} onClick={() => handleEditNote(note)}>
+                      <div style={{display: 'flex', justifyContent: 'space-between'}}><div style={{fontWeight: 'bold', fontSize: '16px'}}>{note.title}</div><div style={{fontSize: '12px', color: 'rgba(255,255,255,0.5)'}}>{note.date}</div></div>
+                      <div className="note-preview">{note.text}</div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
+            {libraryTab === 'camera' && (
+              <div className="camera-grid">
+                {[
+                  { subject: 'Math', page: 'Page 42', img: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?q=80&w=400&auto=format&fit=crop' },
+                  { subject: 'Science', page: 'Page 12', img: 'https://images.unsplash.com/photo-1532094349884-543bc11b234d?q=80&w=400&auto=format&fit=crop' },
+                  { subject: 'History', page: 'Page 88', img: 'https://images.unsplash.com/photo-1461360228754-6e81c478b882?q=80&w=400&auto=format&fit=crop' },
+                  { subject: 'English', page: 'Page 5', img: 'https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?q=80&w=400&auto=format&fit=crop' }
+                ].map((item, i) => (
+                  <div className="camera-card" key={i}><img src={item.img} alt="Scanned Page" className="camera-image" /><div className="camera-info"><span style={{fontWeight: 'bold'}}>{item.subject}</span><span style={{color: 'rgba(255,255,255,0.5)'}}>{item.page}</span></div></div>
+                ))}
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isScanning && (
+          <motion.div className="scanner-overlay" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} transition={{ duration: 0.3 }}>
+            <div style={{marginBottom: '15px', color: '#22d3ee', fontWeight: 'bold', fontSize: '14px'}}>ALIGN PAGE</div>
+            <div className="scanner-frame"><div className="scanner-laser"></div><Camera size={40} color="rgba(255,255,255,0.1)" /></div>
+            <button className="action-btn" style={{marginTop: '20px', width: '150px'}} onClick={() => setIsScanning(false)}>Cancel</button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isFocusOpen && (
+          <motion.div className="focus-screen" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} transition={{ type: "spring", stiffness: 300, damping: 25 }}>
+            <div className="focus-header">
+              <div className="back-btn" onClick={() => setIsFocusOpen(false)}><ArrowLeft size={18} /></div>
+              <div className="focus-title">Today's Focus</div>
+              <div className="ai-assist-btn"><span style={{color: '#22d3ee'}}>✦</span> AI Assist</div>
+            </div>
+
+            <div className="focus-main-card">
+              <div style={{fontSize: '20px', marginBottom: '2px'}}>🧮</div>
+              <div className="subject-title">Mathematics: Algebra</div>
+
+              <div className="timer-circle-container">
+                <svg className="timer-svg">
+                  <circle className="timer-bg-circle" cx="70" cy="70" r="60" />
+                  <circle className="timer-progress-circle" cx="70" cy="70" r="60" />
+                </svg>
+                <div className="timer-text" style={{display: 'flex', flexDirection: 'column', alignItems: 'center'}}>
+                  <div style={{fontSize: '18px', marginBottom: '0px'}}>⏳</div>
+                  <div className="timer-time">{formatTimer(secondsLeft)}</div>
+                  <div className="timer-label">Pomodoro</div>
+                </div>
+              </div>
+
+              <div className="focus-actions">
+                <button className="action-btn" onClick={() => setIsTimerRunning(!isTimerRunning)}>
+                  {isTimerRunning ? <Pause size={14} /> : <Play size={14} />} 
+                  {isTimerRunning ? "Pause" : "Start"}
+                </button>
+                <button className="action-btn" style={{background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)', border: 'none'}}>
+                  <Flag size={14} /> Finish
+                </button>
+              </div>
+            </div>
+
+            <div className="focus-bottom-info">
+              <div className="info-card">
+                <BookOpen size={16} color="white" />
+                <div className="info-text" style={{fontSize: '11px'}}><div>Target:</div><div style={{fontWeight: 'bold', fontSize: '13px'}}>Chapter 4</div></div>
+              </div>
+              <div className="info-card">
+                <CheckCircle size={16} color="white" />
+                <div className="info-text" style={{fontSize: '11px'}}><div>Tasks:</div><div style={{fontWeight: 'bold', fontSize: '13px'}}>2/5 Done</div></div>
+              </div>
+            </div>
+
+            <div className="luka-tip">
+              <Lightbulb color="#fbbf24" size={14} /><span><strong>LUKA Tip:</strong> Break problems into smaller steps!</span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isStatsOpen && (
+          <motion.div className="stats-screen" initial={{ opacity: 0, x: 100 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 100 }} transition={{ type: "spring", stiffness: 300, damping: 30 }}>
+            <div className="stats-header">
+              <div className="back-btn" onClick={() => setIsStatsOpen(false)}><ArrowLeft size={18} /></div>
+              <div style={{fontSize: '28px', fontWeight: 'bold', letterSpacing: '2px'}}>LUKA</div>
+              <div style={{fontSize: '12px', textAlign: 'center', color: '#22d3ee', fontWeight: 'bold'}}>AI<br/>Assistant</div>
+            </div>
+
+            <div className="stats-top-card">
+              <div className="fire-icon">🔥</div>
+              <div style={{display: 'flex', flexDirection: 'column', justifyContent: 'center'}}>
+                <div style={{fontSize: '36px', fontWeight: 'bold', lineHeight: '1.1'}}>12 Day</div>
+                <div style={{fontSize: '18px', color: '#93c5fd'}}>Study Streak!</div>
+              </div>
+              <div style={{marginLeft: 'auto', fontSize: '24px', color: '#fff', opacity: 0.5}}>✦</div>
+            </div>
+
+            <div className="stats-graph-card">
+              <div className="graph-title">
+                <div style={{fontWeight: 'bold', fontSize: '18px'}}>📊 Your Study Progress</div>
+                <div style={{fontSize: '12px', background: 'rgba(255,255,255,0.1)', padding: '6px 12px', borderRadius: '20px'}}>Last 7 Days ▾</div>
+              </div>
+              <div className="graph-bars">
+                {[ { day: 'Mon', val: 4.2, h: 40 }, { day: 'Tue', val: 5.1, h: 50 }, { day: 'Wed', val: 6.0, h: 60 }, { day: 'Thu', val: 4.8, h: 45 }, { day: 'Fri', val: 5.5, h: 55 }, { day: 'Sat', val: 6.3, h: 65 }, { day: 'Sun', val: 5.7, h: 58 } ].map((item, i) => (
+                  <div className="bar-container" key={i}>
+                    <div className="bar" style={{height: `${item.h}%`}}><div style={{position: 'absolute', top: '-22px', width: '100%', textAlign: 'center', fontSize: '11px', fontWeight: 'bold'}}>{item.val}h</div></div>
+                    <div style={{fontSize: '11px', color: 'rgba(255,255,255,0.6)'}}>{item.day}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="stats-grid">
+              <div className="grid-card"><div className="grid-icon"><Timer color="#22d3ee" size={28} /></div><div><div style={{fontSize: '12px', color: 'rgba(255,255,255,0.6)'}}>Focus Time</div><div style={{fontSize: '20px', fontWeight: 'bold'}}>14h 30m</div></div><div style={{marginLeft: 'auto', color: 'rgba(255,255,255,0.4)'}}>›</div></div>
+              <div className="grid-card"><div className="grid-icon"><CheckCircle color="#4ade80" size={28} /></div><div><div style={{fontSize: '12px', color: 'rgba(255,255,255,0.6)'}}>Questions Solved</div><div style={{fontSize: '20px', fontWeight: 'bold'}}>145</div></div><div style={{marginLeft: 'auto', color: 'rgba(255,255,255,0.4)'}}>›</div></div>
+              <div className="grid-card"><div className="grid-icon"><Target color="#a855f7" size={28} /></div><div><div style={{fontSize: '12px', color: 'rgba(255,255,255,0.6)'}}>Quiz Accuracy</div><div style={{fontSize: '20px', fontWeight: 'bold'}}>88%</div></div><div style={{marginLeft: 'auto', color: 'rgba(255,255,255,0.4)'}}>›</div></div>
+              <div className="grid-card"><div className="grid-icon"><Award color="#fbbf24" size={28} /></div><div><div style={{fontSize: '12px', color: 'rgba(255,255,255,0.6)'}}>LUKA Points</div><div style={{fontSize: '20px', fontWeight: 'bold'}}>2,450 XP</div></div><div style={{marginLeft: 'auto', color: 'rgba(255,255,255,0.4)'}}>›</div></div>
+            </div>
+
+            <div className="stats-banner">
+              <span style={{color: '#a855f7', fontSize: '24px'}}>📈</span>
+              <span>You improved by <strong style={{color: '#22d3ee'}}>15%</strong> this week!<br/>Keep going. 🏆</span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+    </div>
+  );
+}
